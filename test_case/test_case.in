@@ -1,30 +1,48 @@
 /*
 Test Package: Semantic-1
-Test Target: autoref
-Author: Ruitian Wang
-Time: 2025-09-25
-Verdict: Pass
-Comment: Auto referencing: calling method requiring &self on value
+Test Target: type
+Author: Wenxin Zheng
+Time: 2025-08-08
+Verdict: Fail
+Comment: Type error: conditional expression branches with different types
 */
 
-struct Counter {
-    value: i32
+// Complete program with type error: conditional expression type mismatch
+enum Color {
+    Red,
+    Green,
+    Blue,
 }
 
-impl Counter {
-    fn get_value(&self) -> i32 {
-        return self.value;
+fn get_color_value(c: &Color) -> i32 {
+    // Simplified color value calculation
+    return 100;
+}
+
+fn process_colors(colors: [Color; 3]) -> i32 {
+    let mut total: i32 = 0;
+    let mut i: usize = 0;
+
+    while (i < 3) {
+        let value: i32 = get_color_value(&colors[i]);
+        total = total + value;
+        i = i + 1;
     }
+
+    return total;
 }
 
-// Test auto referencing when calling methods on values
 fn main() {
-    let counter: Counter = Counter { value: 42 };
+    let color_array: [Color; 3] = [Color::Red, Color::Green, Color::Blue];
+    let total_value: i32 = process_colors(color_array);
 
-    // counter is a value (Counter), but .get_value() needs &self (&Counter)
-    // Compiler should auto convert counter to &counter
-    let result: i32 = counter.get_value();
+    // Type error: conditional branches return different types
+    let result: i32 = if (total_value > 200) {
+        total_value
+    } else {
+        "insufficient value"
+    };
 
-    printInt(result);
+    printInt(42);  // Placeholder since result can't be printed
     exit(0);
 }

@@ -1,1 +1,14 @@
 test_case/*.json
+
+# 测试分类工具
+split_tests
+split_tests.cpp
+
+# 测试结果文件夹
+mytest/
+
+docs/
+
+build/
+
+.vscode/

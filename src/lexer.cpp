@@ -1,82 +1,84 @@
 #include "lexer.h"
 #include <iostream>
 #include <regex>
+#include <boost/regex.hpp>
 #include <string>
 
 #define RUST_SUFFIX "(i32|u32|isize|usize)"
 
 struct LexRule {
   TokenKind kind;
-  std::regex pattern;
+  boost::regex pattern;
 };
 
-static const std::regex re_identifier(R"([a-zA-Z]\w*)");
-static const std::regex re_raw_string(R"(r(#*)\"(.*?)\"\1)");
+
+
+static const boost::regex re_identifier(R"([a-zA-Z]\w*)");
+static const boost::regex re_raw_string(R"(r(#*)\"(.*?)\"\1)");
 static const std::vector<LexRule> lex_rules = {
-  {TokenKind::Number, std::regex("0[bB][01](?:_?[01])*_?" RUST_SUFFIX "?")},
-  {TokenKind::Number, std::regex("0[oO][0-7](?:_?[0-7])*_?" RUST_SUFFIX "?")},
-  {TokenKind::Number, std::regex("0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*_?" RUST_SUFFIX "?")},
-  {TokenKind::Number, std::regex("\\d(?:_?\\d)*_?" RUST_SUFFIX "?")},
-  {TokenKind::Float, std::regex(R"(\d+\.\d+)")},
-  {TokenKind::String, std::regex(R"('([^'\\]|\\.)')")}, //char
-  {TokenKind::String, std::regex(R"("([^"\\]|\\.)*")")}, //string
+  {TokenKind::Number, boost::regex("0[bB][01](?:_?[01])*_?" RUST_SUFFIX "?")},
+  {TokenKind::Number, boost::regex("0[oO][0-7](?:_?[0-7])*_?" RUST_SUFFIX "?")},
+  {TokenKind::Number, boost::regex("0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*_?" RUST_SUFFIX "?")},
+  {TokenKind::Number, boost::regex("\\d(?:_?\\d)*_?" RUST_SUFFIX "?")},
+  {TokenKind::Float,  boost::regex(R"(\d+\.\d+)")},
+  {TokenKind::String, boost::regex(R"('([^'\\]|\\.)')")}, //char
+  {TokenKind::String, boost::regex(R"("([^"\\]|\\.)*")")}, //string
 
+  {TokenKind::Operator, boost::regex(R"(->)")}, // ->
+  {TokenKind::Operator, boost::regex(R"(=>)")}, // =>
+  {TokenKind::Operator, boost::regex(R"(<-)")}, // <-
+  {TokenKind::Comparison, boost::regex(R"(==)")}, // ==
+  {TokenKind::Comparison, boost::regex(R"(!=)")}, // !=
+  {TokenKind::Comparison, boost::regex(R"(<=)")}, // <=
+  {TokenKind::Comparison, boost::regex(R"(>=)")}, // >=
+  {TokenKind::Operator, boost::regex(R"(<<=)")}, // <<=
+  {TokenKind::Operator, boost::regex(R"(<<)")}, // <<
+  {TokenKind::Comparison, boost::regex(R"(<)")}, // <
+  {TokenKind::Operator, boost::regex(R"(>>=)")}, // >>=
+  {TokenKind::Operator, boost::regex(R"(>>)")}, // >>
+  {TokenKind::Comparison, boost::regex(R"(>)")}, // >
 
-  {TokenKind::Operator, std::regex(R"(\->)")}, // ->
-  {TokenKind::Punctuation, std::regex(R"(=>)")}, // =>
-  {TokenKind::Punctuation, std::regex(R"(<\-)")}, // <-
-  {TokenKind::Comparison, std::regex(R"(==)")}, // ==
-  {TokenKind::Comparison, std::regex(R"(!=)")}, // !=
-  {TokenKind::Comparison, std::regex(R"(<=)")}, // <=
-  {TokenKind::Comparison, std::regex(R"(<)")}, // <
-  {TokenKind::Comparison, std::regex(R"(>=)")}, // >=
-  {TokenKind::Comparison, std::regex(R"(>)")}, // >
+  {TokenKind::Operator, boost::regex(R"(=)")}, // =
+  {TokenKind::Operator, boost::regex(R"(\+=)")}, // +=
+  {TokenKind::Operator, boost::regex(R"(\+)")}, // +
+  {TokenKind::Operator, boost::regex(R"(\-=)")}, // -=
+  {TokenKind::Operator, boost::regex(R"(\-)")}, // -
+  {TokenKind::Operator, boost::regex(R"(\*=)")}, // *=
+  {TokenKind::Operator, boost::regex(R"(\*)")}, // *
+  {TokenKind::Operator, boost::regex(R"(\/=)")}, // /=
+  {TokenKind::Operator, boost::regex(R"(\/)")}, // /
+  {TokenKind::Operator, boost::regex(R"(%=)")}, // %=
+  {TokenKind::Operator, boost::regex(R"(%)")}, // %
+  {TokenKind::Operator, boost::regex(R"(&&)")}, // &&
+  {TokenKind::Operator, boost::regex(R"(&=)")}, // &=
+  {TokenKind::Operator, boost::regex(R"(&)")}, // &
+  {TokenKind::Operator, boost::regex(R"(\|\|)")}, // ||
+  {TokenKind::Operator, boost::regex(R"(\|=)")}, // |=
+  {TokenKind::Operator, boost::regex(R"(\|)")}, // |
+  {TokenKind::Operator, boost::regex(R"(\^=)")}, // ^=
+  {TokenKind::Operator, boost::regex(R"(\^)")}, // ^
+  {TokenKind::Operator, boost::regex(R"(!)")}, // !
 
-  {TokenKind::Operator, std::regex(R"(=)")}, // =
-  {TokenKind::Operator, std::regex(R"(\+=)")}, // +=
-  {TokenKind::Operator, std::regex(R"(\+)")}, // +
-  {TokenKind::Operator, std::regex(R"(\-=)")}, // -=
-  {TokenKind::Operator, std::regex(R"(\-)")}, // -
-  {TokenKind::Operator, std::regex(R"(\*=)")}, // *=
-  {TokenKind::Operator, std::regex(R"(\*)")}, // *
-  {TokenKind::Operator, std::regex(R"(\/=)")}, // /=
-  {TokenKind::Operator, std::regex(R"(\/)")}, // /
-  {TokenKind::Operator, std::regex(R"(%=)")}, // %=
-  {TokenKind::Operator, std::regex(R"(%)")}, // %
-  {TokenKind::Operator, std::regex(R"(&&)")}, // &&
-  {TokenKind::Operator, std::regex(R"(&=)")}, // &=
-  {TokenKind::Operator, std::regex(R"(&)")}, // &
-  {TokenKind::Operator, std::regex(R"(\|\|)")}, // ||
-  {TokenKind::Operator, std::regex(R"(\|=)")}, // \=
-  {TokenKind::Operator, std::regex(R"(\|)")}, // |
-  {TokenKind::Operator, std::regex(R"(\^=)")}, // ^=
-  {TokenKind::Operator, std::regex(R"(\^)")}, // ^
-  {TokenKind::Operator, std::regex(R"(!)")}, // !
-  {TokenKind::Operator, std::regex(R"(<<=)")}, // <<=
-  {TokenKind::Operator, std::regex(R"(<<)")}, // <<
-  {TokenKind::Operator, std::regex(R"(>>=)")}, // >>=
-  {TokenKind::Operator, std::regex(R"(>>)")}, // >>
-
-  {TokenKind::Punctuation, std::regex(R"(\()")}, // (
-  {TokenKind::Punctuation, std::regex(R"(\))")}, // )
-  {TokenKind::Punctuation, std::regex(R"(\[)")}, // [
-  {TokenKind::Punctuation, std::regex(R"(\])")}, // ]
-  {TokenKind::Punctuation, std::regex(R"(\{)")}, // {
-  {TokenKind::Punctuation, std::regex(R"(\})")}, // }
-  {TokenKind::Punctuation, std::regex(R"(;)")}, // ;
-  {TokenKind::Punctuation, std::regex(R"(_)")}, // _
-  {TokenKind::Punctuation, std::regex(R"(,)")}, // ,
-  {TokenKind::Punctuation, std::regex(R"(\.\.\.)")}, // ...
-  {TokenKind::Punctuation, std::regex(R"(\..=)")}, // ..=
-  {TokenKind::Punctuation, std::regex(R"(\.\.)")}, // ..
-  {TokenKind::Punctuation, std::regex(R"(\.)")}, // .
-  {TokenKind::Punctuation, std::regex(R"(::)")}, // ::
-  {TokenKind::Punctuation, std::regex(R"(:)")}, // :
-  {TokenKind::Punctuation, std::regex(R"(\?)")}, // ?
-  {TokenKind::Punctuation, std::regex(R"(\@)")}, // @
-  {TokenKind::Operator, std::regex(R"(~)")}, // ~
-  {TokenKind::Punctuation, std::regex(R"(#)")}, // #
-  {TokenKind::Punctuation, std::regex(R"($)")}, // $
+  {TokenKind::Punctuation, boost::regex(R"(\()")}, // (
+  {TokenKind::Punctuation, boost::regex(R"(\))")}, // )
+  {TokenKind::Punctuation, boost::regex(R"(\[)")}, // [
+  {TokenKind::Punctuation, boost::regex(R"(\])")}, // ]
+  {TokenKind::Punctuation, boost::regex(R"(\{)")}, // {
+  {TokenKind::Punctuation, boost::regex(R"(\})")}, // }
+  {TokenKind::Punctuation, boost::regex(R"(;)")}, // ;
+  {TokenKind::Punctuation, boost::regex(R"(_)")}, // _
+  {TokenKind::Punctuation, boost::regex(R"(,)")}, // ,
+  {TokenKind::Punctuation, boost::regex(R"(\.\.\.)")}, // ...
+  {TokenKind::Punctuation, boost::regex(R"(\..=)")}, // ..=
+  {TokenKind::Punctuation, boost::regex(R"(\.\.)")}, // ..
+  {TokenKind::Punctuation, boost::regex(R"(\.)")}, // .
+  {TokenKind::Punctuation, boost::regex(R"(::)")}, // ::
+  {TokenKind::Punctuation, boost::regex(R"(:)")}, // :
+  {TokenKind::Punctuation, boost::regex(R"(\?)")}, // ?
+  {TokenKind::Punctuation, boost::regex(R"(\@)")}, // @
+  {TokenKind::Operator, boost::regex(R"(~)")}, // ~
+  {TokenKind::Punctuation, boost::regex(R"(#)")}, // #
+  {TokenKind::Punctuation, boost::regex(R"($)")}, // $
 }; //正则表达式多为GPT生成
 
 
@@ -89,10 +91,10 @@ void Lexer::advance() {
   currentChar = pos_ < src_.size() ? src_[pos_] : EOF;
 }
 
-bool Lexer::match(const std::regex &re, const std::string &src, size_t &pos, std::string &matched) {
-  std::smatch m;
+bool Lexer::match(const boost::regex &re, const std::string &src, size_t &pos, std::string &matched) {
+  boost::smatch m;
   std::string cur = src.substr(pos);
-  if (std::regex_search(cur, m, re) && m.position() == 0) {
+  if (boost::regex_search(cur, m, re) && m.position() == 0) {
     matched = m.str();
     pos += matched.length();
     currentChar = pos < src_.size() ? src_[pos] : EOF;
@@ -108,25 +110,38 @@ void Lexer::skip_whitespace() {
 }
 
 void Lexer::skip_comment() {
-  if (currentChar == '/') {
-    if (pos_ + 1 == src_.size()) {
-      throw std::runtime_error("Invalid Code");
-    }
+  // 处理单个注释
+  if (currentChar == '/' && pos_ + 1 < src_.size()) {
     if (src_[pos_ + 1] == '/') {
-      while (pos_ < src_.size() && src_[pos_] != '\n') ++pos_;
-      currentChar = pos_ < src_.size() ? src_[pos_] : EOF;
+      // 处理单行注释，支持多种换行符（\n, \r, \r\n）
+      pos_ += 2; // 跳过 //
+      while (pos_ < src_.size()) {
+        if (src_[pos_] == '\n') {
+          pos_++; // 跳过换行符
+          break;
+        } else if (src_[pos_] == '\r') {
+          pos_++; // 跳过回车符
+          // 检查是否是\r\n组合
+          if (pos_ < src_.size() && src_[pos_] == '\n') {
+            pos_++; // 跳过换行符
+          }
+          break;
+        } else {
+          pos_++; // 跳过注释内容
+        }
+      }
     } else if (src_[pos_ + 1] == '*') {
+      // 处理多行注释
       int count = 1;
       bool match = false;
-      pos_ += 2;
+      pos_ += 2; // 跳过 /*
       while (count > 0 && pos_ < src_.size()) {
         match = false;
         if (src_[pos_] == '/' && pos_ + 1 < src_.size() && src_[pos_ + 1] == '*') {
-          ++count;
+          ++count; // 嵌套注释开始
           match = true;
-        }
-        if (src_[pos_] == '*' && pos_ + 1 < src_.size() && src_[pos_ + 1] == '/') {
-          --count;
+        } else if (src_[pos_] == '*' && pos_ + 1 < src_.size() && src_[pos_ + 1] == '/') {
+          --count; // 注释结束
           match = true;
         }
         if (match) {
@@ -136,17 +151,27 @@ void Lexer::skip_comment() {
         }
       }
       if (count > 0) {
+        std::cerr << "Invalid Comment: Unterminated multi-line comment at position " << pos_ << std::endl;
         throw std::runtime_error("Invalid Comment");
       }
-      currentChar = pos_ < src_.size() ? src_[pos_] : EOF;
     }
   }
+  // 更新当前字符
+  currentChar = pos_ < src_.size() ? src_[pos_] : EOF;
 }
 
 Token Lexer::next_token() {
-  skip_whitespace();
-  skip_comment();
-  skip_whitespace();
+  // 循环处理空白和注释，直到遇到非空白非注释字符
+  while (true) {
+    skip_whitespace();
+    if (currentChar != '/' || pos_ + 1 >= src_.size() || 
+        (src_[pos_ + 1] != '/' && src_[pos_ + 1] != '*')) {
+      // 不是注释，退出循环
+      break;
+    }
+    // 是注释，跳过它
+    skip_comment();
+  }
   if (pos_ >= src_.size()) {
     return Token(TokenKind::Eof, "", src_.size());
   }

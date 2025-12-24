@@ -1,6 +1,7 @@
 #ifndef LEXER_H
 #define LEXER_H
 #include <regex>
+#include <boost/regex.hpp>
 #include "token.h"
 #include <vector>
 #include <string>
@@ -20,7 +21,7 @@ public:
 private:
   void advance();
 
-  bool match(const std::regex &, const std::string &, size_t &, std::string &);
+  bool match(const boost::regex &, const std::string &, size_t &, std::string &);
 
   void skip_whitespace();
 

@@ -15,9 +15,22 @@ jobs:
       - name: 编译
         run: g++ -std=c++20 -O2 src/main.cpp -o main
 
-      - name: test_case输入并运行
+      - name: 运行所有测试用例
         run: |
-          for file in test_case/*; do
+          echo "开始运行所有测试用例..."
+          # 查找所有.rx文件并运行
+          find test_case -name "*.rx" -type f | while read file; do
             echo "运行测试用例: $file"
-            ./main < "$file"
+            # 获取测试用例名称（去掉路径和扩展名）
+            testcase_name=$(basename "$file" .rx)
+            # 获取测试用例所在目录
+            testcase_dir=$(dirname "$file")
+            # 运行测试用例
+            if ./main "$file"; then
+              echo "✓ 测试用例 $testcase_name 通过"
+            else
+              echo "✗ 测试用例 $testcase_name 失败"
+            fi
+            echo "----------------------------------------"
           done
+          echo "所有测试用例运行完成"
