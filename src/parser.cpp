@@ -1307,15 +1307,14 @@ std::unique_ptr<StmtAST> Parser::parse_stmt() {
       std::string name = expect_identifier();
       expect(TokenKind::Punctuation, "{");
 
-      std::vector<std::pair<std::string, std::string>> fields;
+      std::vector<std::pair<std::string, std::unique_ptr<TypeAST>>> fields;
 
       // 解析结构体字段
       while (!match(TokenKind::Punctuation, "}")) {
         std::string field_name = expect_identifier();
         expect(TokenKind::Punctuation, ":");
         auto field_type_ast = parse_type();
-        std::string field_type = field_type_ast->toString();
-        fields.push_back(std::make_pair(field_name, field_type));
+        fields.emplace_back(field_name, std::move(field_type_ast));
 
         // 如果不是最后一个字段，需要逗号分隔
         if (!match(TokenKind::Punctuation, "}")) {

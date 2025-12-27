@@ -3,6 +3,8 @@
 #include "lexer.h"
 #include <cstdint>
 #include <iostream>
+#include <memory>
+#include <vector>
 using std::string;
 using std::unique_ptr;
 using std::make_unique;
@@ -488,9 +490,9 @@ public:
 class StructStmtAST : public StmtAST {
 public:
   string name;
-  std::vector<std::pair<string, string>> fields;
+  std::vector<std::pair<string, std::unique_ptr<TypeAST>>> fields;
 
-  StructStmtAST(const string &, std::vector<std::pair<string, string>>, size_t);
+  StructStmtAST(const string &, std::vector<std::pair<string, std::unique_ptr<TypeAST>>>, size_t);
   void dump(int indent) const override;
 };
 

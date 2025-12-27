@@ -17,6 +17,7 @@ set(MAIN_SOURCES
         src/parser.cpp
         src/token.cpp
         src/semantic.cpp
+        src/ir.cpp
 )
 
 # 测试程序源文件
@@ -26,6 +27,8 @@ set(TEST_SOURCES
         src/lexer.cpp
         src/parser.cpp
         src/token.cpp
+        src/semantic.cpp
+        src/ir.cpp
 )
 
 # 语义分析测试程序源文件
@@ -36,6 +39,18 @@ set(SEMANTIC_TEST_SOURCES
         src/parser.cpp
         src/token.cpp
         src/semantic.cpp
+        src/ir.cpp
+)
+
+# IR 测试驱动（调用已构建的 compiler 可执行程序）
+set(IR_TEST_SOURCES
+        src/ir_test.cpp
+        src/ast.cpp
+        src/lexer.cpp
+        src/parser.cpp
+        src/token.cpp
+        src/semantic.cpp
+        src/ir.cpp
 )
 
 # 创建主程序可执行文件
@@ -46,3 +61,6 @@ add_executable(parser_test ${TEST_SOURCES})
 
 # 创建语义分析测试程序可执行文件
 add_executable(semantic_test ${SEMANTIC_TEST_SOURCES})
+
+# 创建 IR 测试程序可执行文件
+add_executable(ir_test ${IR_TEST_SOURCES})

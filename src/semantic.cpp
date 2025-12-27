@@ -8,6 +8,7 @@
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <functional>
 #include <typeinfo>
 
 namespace {
@@ -377,8 +378,8 @@ bool SemanticAnalyzer::analyze(BlockStmtAST *program) {
   if (!program) {
     return true;
   }
-  collectTypeDeclarations(program);
   collectConstDeclarations(program);
+  collectTypeDeclarations(program);
   collectFunctionDeclarations(program);
   analyzeTopLevel(program);
   return issues.empty();
@@ -476,12 +477,13 @@ void SemanticAnalyzer::registerStruct(StructStmtAST *structStmt) {
       reportError(structStmt->position(), "Struct '" + structStmt->name + "' redeclares field '" + field.first + "'");
       continue;
     }
-    auto fieldType = resolveTypeName(field.second);
+    auto fieldType = resolveType(field.second.get());
     if (!fieldType) {
       fieldType = TypeFactory::getUnknown();
     }
     validateTypeConstraints(fieldType, structStmt->position());
     it->second.fields[field.first] = fieldType;
+    it->second.orderedFields.emplace_back(field.first, fieldType);
   }
 }
 
@@ -518,6 +520,7 @@ void SemanticAnalyzer::registerLocalFunctionSymbol(FnStmtAST *fn) {
   }
 
   std::vector<TypeRef> params;
+  std::vector<bool> paramMut;
   for (const auto &param: fn->params) {
     TypeRef type = resolveTypeName(param.second, currentImplType);
     if (!type) {
@@ -525,6 +528,7 @@ void SemanticAnalyzer::registerLocalFunctionSymbol(FnStmtAST *fn) {
     }
     validateTypeConstraints(type, fn->position());
     params.push_back(type);
+    paramMut.push_back(param.first ? param.first->is_mut : false);
   }
 
   TypeRef ret = fn->return_type ? resolveType(fn->return_type.get()) : TypeFactory::getVoid();
@@ -569,6 +573,7 @@ void SemanticAnalyzer::registerFunction(FnStmtAST *fn, const std::string &ownerT
   }
 
   std::vector<TypeRef> params;
+  std::vector<bool> paramMut;
   bool hasSelf = false;
   TypeRef receiver;
   bool selfIsRefParam = false;
@@ -588,6 +593,7 @@ void SemanticAnalyzer::registerFunction(FnStmtAST *fn, const std::string &ownerT
     }
     validateTypeConstraints(type, fn->position());
     params.push_back(type);
+    paramMut.push_back(param.first ? param.first->is_mut : false);
   }
 
   TypeRef ret = fn->return_type ? resolveType(fn->return_type.get()) : TypeFactory::getVoid();
@@ -604,6 +610,7 @@ void SemanticAnalyzer::registerFunction(FnStmtAST *fn, const std::string &ownerT
     FunctionInfo info;
     info.name = fn->name;
     info.params = params;
+    info.paramMut = paramMut;
     info.returnType = ret;
     functions[fn->name] = info;
     Symbol symbol{fn->name, SymbolKind::Function, TypeFactory::makeFunction(params, ret), false};
@@ -617,6 +624,7 @@ void SemanticAnalyzer::registerFunction(FnStmtAST *fn, const std::string &ownerT
     FunctionInfo info;
     info.name = ownerType + "::" + fn->name;
     info.params = params;
+    info.paramMut = paramMut;
     info.returnType = ret;
     info.isMethod = true;
     info.hasSelf = hasSelf;
@@ -1139,6 +1147,92 @@ bool SemanticAnalyzer::tryEvaluateConstInt(ExprAST *expr, int64_t &value) const 
     }
   }
   return false;
+}
+
+bool SemanticAnalyzer::evaluateConstLengthExpr(const std::string &expr, int64_t &value) const {
+  auto skipWs = [&](size_t &idx) {
+    while (idx < expr.size() && std::isspace(static_cast<unsigned char>(expr[idx]))) ++idx;
+  };
+  std::function<bool(size_t &, int64_t &)> parseExpr, parseTerm, parseFactor;
+  parseFactor = [&](size_t &idx, int64_t &out) {
+    skipWs(idx);
+    if (idx >= expr.size()) return false;
+    char c = expr[idx];
+    if (c == '(') {
+      ++idx;
+      if (!parseExpr(idx, out)) return false;
+      skipWs(idx);
+      if (idx >= expr.size() || expr[idx] != ')') return false;
+      ++idx;
+      return true;
+    }
+    if (c == '+' || c == '-') {
+      ++idx;
+      int64_t inner = 0;
+      if (!parseFactor(idx, inner)) return false;
+      out = (c == '-') ? -inner : inner;
+      return true;
+    }
+    if (std::isdigit(static_cast<unsigned char>(c))) {
+      int64_t val = 0;
+      while (idx < expr.size() && std::isdigit(static_cast<unsigned char>(expr[idx]))) {
+        val = val * 10 + (expr[idx] - '0');
+        ++idx;
+      }
+      out = val;
+      return true;
+    }
+    if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
+      std::string ident;
+      while (idx < expr.size() && (std::isalnum(static_cast<unsigned char>(expr[idx])) || expr[idx] == '_')) {
+        ident.push_back(expr[idx]);
+        ++idx;
+      }
+      auto it = constIntValues.find(ident);
+      if (it == constIntValues.end()) return false;
+      out = it->second;
+      return true;
+    }
+    return false;
+  };
+  parseTerm = [&](size_t &idx, int64_t &out) {
+    if (!parseFactor(idx, out)) return false;
+    while (true) {
+      skipWs(idx);
+      if (idx >= expr.size()) return true;
+      char op = expr[idx];
+      if (op != '*' && op != '/' && op != '%') return true;
+      ++idx;
+      int64_t rhs = 0;
+      if (!parseFactor(idx, rhs)) return false;
+      if (op == '*') out *= rhs;
+      else if (op == '/') {
+        if (rhs == 0) return false;
+        out /= rhs;
+      } else {
+        if (rhs == 0) return false;
+        out %= rhs;
+      }
+    }
+  };
+  parseExpr = [&](size_t &idx, int64_t &out) {
+    if (!parseTerm(idx, out)) return false;
+    while (true) {
+      skipWs(idx);
+      if (idx >= expr.size()) return true;
+      char op = expr[idx];
+      if (op != '+' && op != '-') return true;
+      ++idx;
+      int64_t rhs = 0;
+      if (!parseTerm(idx, rhs)) return false;
+      if (op == '+') out += rhs; else out -= rhs;
+    }
+  };
+
+  size_t pos = 0;
+  if (!parseExpr(pos, value)) return false;
+  skipWs(pos);
+  return pos == expr.size();
 }
 
 bool SemanticAnalyzer::isNumericLiteral(ExprAST *expr) const {
@@ -1973,6 +2067,9 @@ TypeRef SemanticAnalyzer::resolveTypeName(const std::string &raw, const std::str
         if (separator != std::string::npos && close > separator + 1) {
           auto lengthPart = trim(name.substr(separator + 1, close - separator - 1));
           hasLength = parseIntegerLiteral(lengthPart, lengthValue);
+          if (!hasLength) {
+            hasLength = evaluateConstLengthExpr(lengthPart, lengthValue);
+          }
         }
         return TypeFactory::makeArray(elementType ? elementType : TypeFactory::getUnknown(), lengthValue, hasLength);
       }
@@ -2184,4 +2281,12 @@ FunctionInfo *SemanticAnalyzer::findMethod(const std::string &typeName, const st
     return nullptr;
   }
   return &inner->second;
+}
+
+const StructInfo *SemanticAnalyzer::getStructInfo(const std::string &name) const {
+  auto it = structs.find(name);
+  if (it == structs.end()) {
+    return nullptr;
+  }
+  return &it->second;
 }

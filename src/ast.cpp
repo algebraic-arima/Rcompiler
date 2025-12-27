@@ -672,10 +672,11 @@ void ExitStmtAST::dump(int indent) const {
   }
 }
 
-StructStmtAST::StructStmtAST(const string &name_, std::vector<std::pair<string, string>> fields_, size_t pos_)
+StructStmtAST::StructStmtAST(const string &name_,
+                             std::vector<std::pair<string, unique_ptr<TypeAST>>> fields_,
+                             size_t pos_)
   : StmtAST(pos_), name(name_), fields(std::move(fields_)) {
-}
-
+  }
 void StructStmtAST::dump(int indent) const {
   dump_space(indent);
   std::cout << "StructStmt: " << name << "\n";
@@ -684,7 +685,7 @@ void StructStmtAST::dump(int indent) const {
 
   for (const auto &field : fields) {
     dump_space(indent + DumpSpaceNumber * 2);
-    std::cout << field.first << ": " << field.second << "\n";
+    std::cout << field.first << ": " << field.second->toString() << "\n";
   }
 }
 

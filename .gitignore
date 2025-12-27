@@ -1,3 +1,6 @@
+test_case/
+test_case/*.txt
+test_case/*.ll
 test_case/*.json
 
 # 测试分类工具
@@ -12,3 +15,8 @@ docs/
 build/
 
 .vscode/
+
+tmp/
+
+clean_semantic2
+clean_semantic2.cpp

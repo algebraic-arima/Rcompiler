@@ -10,8 +10,6 @@
 #include <vector>
 
 //===----------------------------------------------------------------------===//
-//  类型系统
-//===----------------------------------------------------------------------===//
 
 enum class BaseType {
   Int,
@@ -122,6 +120,7 @@ private:
 struct StructInfo {
   std::string name;
   std::unordered_map<std::string, TypeRef> fields;
+  std::vector<std::pair<std::string, TypeRef> > orderedFields;
 };
 
 struct EnumVariant {
@@ -137,6 +136,7 @@ struct EnumInfo {
 struct FunctionInfo {
   std::string name;
   std::vector<TypeRef> params;
+  std::vector<bool> paramMut;
   TypeRef returnType;
   bool isMethod = false;
   bool hasSelf = false;
@@ -150,7 +150,6 @@ struct SemanticIssue {
   size_t position = 0;
 };
 
-//  语义分析
 //===----------------------------------------------------------------------===//
 
 class SemanticAnalyzer {
@@ -161,7 +160,7 @@ public:
 
   const std::vector<SemanticIssue> &errors() const { return issues; }
 
-private:
+  public:
   // 生命周期管理
   void reset();
 
@@ -267,6 +266,9 @@ private:
 
   bool tryEvaluateConstInt(ExprAST *expr, int64_t &value) const;
 
+  // Evaluate a constant integer expression provided as a raw string (used for array lengths in type annotations).
+  bool evaluateConstLengthExpr(const std::string &expr, int64_t &value) const;
+
   bool isNumericLiteral(ExprAST *expr) const;
 
   bool exprGuaranteesReturn(ExprAST *expr) const;
@@ -285,6 +287,10 @@ private:
   FunctionInfo *findFunction(const std::string &name);
 
   FunctionInfo *findMethod(const std::string &typeName, const std::string &methodName);
+
+  const StructInfo *getStructInfo(const std::string &name) const;
+
+  const std::unordered_map<std::string, StructInfo> &getStructTable() const { return structs; }
 
 private:
   SymbolTable symbols;
