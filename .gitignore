@@ -1,4 +1,5 @@
 test_case/**
+!test_case/**/
 !test_case/**/*.rx
 !test_case/**/*.in
 !test_case/**/*.out
