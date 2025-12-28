@@ -541,6 +541,16 @@ void SemanticAnalyzer::registerLocalFunctionSymbol(FnStmtAST *fn) {
   if (!symbols.addSymbol(symbol)) {
     reportError(fn->position(), "Function '" + fn->name + "' already defined in this scope");
   }
+
+  // Also register into global function table so IR generation can retrieve signature for local functions.
+  if (!functions.count(fn->name)) {
+    FunctionInfo info;
+    info.name = fn->name;
+    info.params = params;
+    info.paramMut = paramMut;
+    info.returnType = ret;
+    functions[fn->name] = info;
+  }
 }
 
 void SemanticAnalyzer::preRegisterLocalFunctions(BlockStmtAST *block) {
@@ -580,7 +590,17 @@ void SemanticAnalyzer::registerFunction(FnStmtAST *fn, const std::string &ownerT
   bool selfIsMutParam = false;
   for (size_t i = 0; i < fn->params.size(); ++i) {
     const auto &param = fn->params[i];
-    TypeRef type = resolveTypeName(param.second, ownerType);
+    TypeRef type;
+    if (param.first && param.first->type) {
+      // Prefer the parsed TypeAST so array lengths are preserved.
+      type = resolveType(param.first->type.get());
+    }
+    if (!type && !param.second.empty()) {
+      type = resolveTypeName(param.second, ownerType);
+    }
+    if (param.first && param.first->is_ref) {
+      type = TypeFactory::makeReference(type ? type : TypeFactory::getUnknown(), param.first->is_mut);
+    }
     if (!type) {
       type = TypeFactory::getUnknown();
     }
@@ -694,7 +714,16 @@ void SemanticAnalyzer::analyzeFunctionBody(FnStmtAST *fn, const std::string &own
     if (!param.first) {
       continue;
     }
-    TypeRef type = resolveTypeName(param.second, currentImplType);
+    TypeRef type;
+    if (param.first->type) {
+      type = resolveType(param.first->type.get());
+    }
+    if (!type) {
+      type = resolveTypeName(param.second, currentImplType);
+    }
+    if (param.first->is_ref) {
+      type = TypeFactory::makeReference(type ? type : TypeFactory::getUnknown(), param.first->is_mut);
+    }
     if (!type) {
       type = TypeFactory::getUnknown();
     }
@@ -1110,6 +1139,11 @@ bool SemanticAnalyzer::tryEvaluateConstInt(ExprAST *expr, int64_t &value) const 
         value = unary->op == "-" ? -inner : inner;
         return true;
       }
+    }
+  }
+  if (auto *cast = dynamic_cast<CastExprAST *>(expr)) {
+    if (tryEvaluateConstInt(cast->expr.get(), value)) {
+      return true; // numeric cast of a constant keeps the value for length evaluation
     }
   }
   if (auto *var = dynamic_cast<VariableExprAST *>(expr)) {

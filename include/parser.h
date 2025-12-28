@@ -230,6 +230,9 @@ public:
         
         // 创建IdentPatternAST对象
         auto pattern = std::make_unique<IdentPatternAST>(param_name, is_mut, is_ref, false, current().position());
+
+        // 保留完整的类型AST以便后续阶段能获取精确的长度信息
+        pattern->type = std::move(type_ast);
         
         // 添加参数到列表
         params.emplace_back(std::move(pattern), type_name);
