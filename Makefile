@@ -1,14 +1,9 @@
-BUILD_DIR ?= build
-BINARY := $(BUILD_DIR)/code
-
-.PHONY: build run clean
+.PHONY: build run
 
 build:
-	cmake -S . -B $(BUILD_DIR)
-	cmake --build $(BUILD_DIR) --target code
+	@mkdir -p build
+	@cd build && cmake .. && cmake --build .
 
-run: build
-	$(BINARY) -
-
-clean:
-	rm -rf $(BUILD_DIR)
+run:
+	@./build/code
+	@cat builtin.c >&2
